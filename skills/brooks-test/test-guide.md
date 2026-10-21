@@ -231,5 +231,3 @@ Immediately before the `## Findings` heading, output in this order:
 Do not turn the report into a pure defect list; the assessment is what makes it
 actionable. Compute the Health Score per the Report Contract and show finding counts
 next to it.
-
-**唯一需要你决定的是 T4 这个编号。** 原来 `test-decay-risks.md` 不存在，所以 T2/T3/T6 这三个编号是从旧引用里保留下来的，T4（Mock Abuse）和 T7（Lifecycle Debt）是我新起的。如果你希望编号连续无跳号，把 T4 改成 T5、T7 改成 T6 即可，guide 里各出现一次，改动很小。

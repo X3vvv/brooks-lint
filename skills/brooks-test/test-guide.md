@@ -1,6 +1,6 @@
 # Test Quality Review Guide — Mode 4
 
-**Purpose:** Diagnose the health of a test suite using six test-space decay risks.
+**Purpose:** Diagnose the health of a test suite using seven test-space decay risks.
 Every finding must follow the Iron Law: Symptom → Source → Consequence → Remedy.
 
 ---
@@ -23,13 +23,33 @@ most relevant:
 2. "When you make a change, how often do unrelated tests break?"
 3. "Is there a part of the codebase your team avoids touching because it has no tests?"
 
+Before filling the map, read these facts from the repo (do not guess):
+- `testpaths` from `pyproject.toml` / `pytest.ini` / `setup.cfg`
+- whether a `conftest.py` exists, and what fixtures it shares across files
+- files skipped at collection time (`importorskip`, `skipif`, markers) — these are
+  zero-collection tests, not coverage
+- whether a `probes/` or similar scratch directory exists, and whether it is gitignored
+Record these under the map as "Collection facts". They feed Step 5.
+
 After one answer, proceed. Do not ask more than one question.
 
 ---
 
+## Root Criterion (applies to every step below)
+
+A test is well-formed only if it still passes when the implementation is rewritten
+with identical observable behavior. Ask of every test:
+
+  "If I replace the internals — extract a function, merge two calls, change the
+   algorithm — but every public behavior stays the same, does this test stay green?"
+
+If no, the test is coupled to implementation, regardless of how clean its name or
+assertions look. Steps 2a and 2b give symptoms; this criterion is the verdict.
+
+
 ## Analysis Process
 
-Work through these five steps in order.
+Work through these six steps in order. Step 6 is the output step, not a scan.
 
 ### Step 1: Scan for Test Obscurity
 
@@ -45,6 +65,11 @@ Look for:
   fixtures) that is invisible from within the test body?
 - Is there a single massive setUp or beforeEach that every test inherits regardless of
   what it actually needs?
+- Agent-interference check: are there tests that rarely fail but make an automated
+  or unfamiliar contributor avoid a reasonable refactor — e.g. asserting an internal
+  call sequence, a private attribute, or an exact intermediate value that no caller
+  observes? These are silent interference, not just brittleness: they never go red,
+  but they steer implementation. Flag 🟡 with the refactor they would block.
 
 If all test names are clear and setups are minimal → no finding.
 
@@ -82,6 +107,11 @@ Look for:
   (test-induced design damage)?
 - Does any single test create more than 3 mock objects?
 
+The positive principle — where mocks *should* live (uncontrolled external systems
+and narrow owned adapters; internal collaboration uses fakes or real lightweight
+implementations) — is defined in `../_shared/test-decay-risks.md` under Mock Abuse.
+Do not restate it here; link to it.
+
 If mock setup-to-assertion ratio exceeds 3:1 → 🟡 Warning.
 If production methods exist only for test access → 🔴 Critical (architecture is being
 distorted by the test suite).
@@ -95,6 +125,12 @@ Look for:
   with no differentiation (Lazy Test)?
 - Is the same business scenario covered at unit, integration, and E2E level with no
   difference in what each layer is testing?
+
+Parameterization quality:
+- Good: one test function, multiple input sets, identical assertion logic — same
+  behavior contract, different data.
+- Bad: different inputs take different behavior branches inside the same test —
+  that is several contracts wearing one name. Split it, do not parameterize it.
 
 Severity: use the T3 Severity Guide in `../_shared/test-decay-risks.md`, with instance
 counts as the tiebreaker — 🔴 10+ instances, 🟡 3–9, 🟢 1–2.
@@ -141,9 +177,44 @@ breaks the fast-feedback loop and causes developers to skip running tests locall
 
 Source: Meszaros — xUnit Test Patterns, Slow Tests (p. 253)
 
-### Step 5: Apply Iron Law, Output Report
+### Step 5: Scan for Lifecycle Debt
+
+*Tests that occupy maintenance cost without providing protection. A test that does
+not run, or only runs on one machine, is worse than no test: it signals coverage
+that does not exist.*
+
+Look for:
+- Zombie tests: source files present but zero tests collected (importorskip on a
+  missing optional dependency, skipif on a personal path). Confirm against the
+  Collection facts gathered in "Before You Start".
+- Environment-coupled probes: hard-coded personal paths, developer-machine
+  directories, network assumptions. These fail on another machine or are silently
+  skipped — either way they do not protect.
+- Golden files without an update path: baseline/snapshot files with no explicit
+  update command. Intentional changes make many tests red at once and invite
+  "edit the baseline to go green". Require an `UPDATE_*` entry point and a reviewed
+  baseline diff.
+- Scratch probes inside the permanent suite: temporary capture tests, one-off
+  environment checks, anything with no named behavior contract. These belong in a
+  gitignored probes directory, not in `tests/`.
+
+Severity: use the T? Severity Guide in `../_shared/test-decay-risks.md` under
+Test Lifecycle Debt (assign the next free T-number; if T1/T4/T5 are taken, use T7).
+Zombie and environment-coupled tests are 🔴 when they sit in the permanent suite;
+golden-file-without-update and scratch-probe leakage are 🟡.
+
+### Step 6: Apply Iron Law, Output Report
 
 Apply the Iron Law format from `../_shared/common.md` to each finding.
 
 Use the standard Report Template. Mode: Test Quality Review.
 Include the Test Suite Map as a code block immediately before the `## Findings` heading, labeled "Test Suite Map".
+
+Before ## Findings, also output a short **Overall Assessment** answering:
+1. Which 3–5 tests are the best behavior contracts — and why they survive refactors?
+2. Which tests are silent interference — never red, but steer implementation?
+3. Which external behavior has no contract test if this module is refactored?
+4. Which current tests should move to `probes/` or be deleted? Give the list.
+
+Do not turn the report into a pure defect list; the assessment is what makes it
+actionable.

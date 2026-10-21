@@ -107,11 +107,6 @@ Look for:
   (test-induced design damage)?
 - Does any single test create more than 3 mock objects?
 
-The positive principle — where mocks *should* live (uncontrolled external systems
-and narrow owned adapters; internal collaboration uses fakes or real lightweight
-implementations) — is defined in `../_shared/test-decay-risks.md` under Mock Abuse.
-Do not restate it here; link to it.
-
 If mock setup-to-assertion ratio exceeds 3:1 → 🟡 Warning.
 If production methods exist only for test access → 🔴 Critical (architecture is being
 distorted by the test suite).

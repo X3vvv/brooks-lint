@@ -23,18 +23,19 @@ metadata:
 
 Read in order:
 
-1. `../_shared/common.md` — Iron Law, Project Config, Report Template, Health Score
-2. `../_shared/source-coverage.md` — book coverage, exceptions, tradeoffs
-3. `../_shared/test-decay-risks.md` — test-space symptom definitions and sources
-4. `test-guide.md` (this directory) — the test quality review framework
+1. `test-guide.md` (this directory) — the complete review framework. It is self-contained:
+   it defines Auto Scope Detection, the Root Criterion, the Iron Law report format,
+   Health Score, source references, severity guides (T2/T3/T4/T6/T7), the Mock positive
+   principle, and the Lifecycle Debt scan.
+
+No other files are required.
 
 ## Process
 
-**Scope:** if the user did not share test files or point to a test directory, apply Auto
-Scope Detection (`../_shared/common.md`) first.
-
-1. Build the test suite map (guide's "Before You Start" section)
-2. Scan for each test decay risk in the order specified (Steps 1–5 of the guide)
-3. Apply the Iron Law and output using the Report Template (Step 5 of the guide)
+1. Determine scope using the guide's "Report Contract → Auto Scope Detection" section.
+2. Build the test suite map and Collection facts (guide's "Before You Start" section).
+3. Scan for each test decay risk in the order specified (guide's Steps 1–5), applying
+   the Root Criterion before each scan.
+4. Apply the Iron Law and output using the Report Template (guide's Step 6).
 
 **Mode line in report:** `Test Quality Review`

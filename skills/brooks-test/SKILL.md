@@ -5,7 +5,8 @@ description: >
   on xUnit Test Patterns, The Art of Unit Testing, How Google Tests Software, and
   Working Effectively with Legacy Code — that diagnoses structural problems in an
   existing test suite: brittleness, mock abuse, coverage illusions, slow execution,
-  poor readability.
+  poor readability, and test-lifecycle debt (zombie tests, environment-coupled probes,
+  golden files without an update path).
   Triggers when: user asks about test quality, shares test files for review, or
   expresses frustration: "tests keep breaking whenever I change anything", "our tests
   take forever", "tests pass but bugs still reach production", or "we have too many mocks".
@@ -33,7 +34,7 @@ Read in order:
 Scope Detection (`../_shared/common.md`) first.
 
 1. Build the test suite map (guide's "Before You Start" section)
-2. Scan for each test decay risk in the order specified (Steps 1–4 of the guide)
+2. Scan for each test decay risk in the order specified (Steps 1–5 of the guide)
 3. Apply the Iron Law and output using the Report Template (Step 5 of the guide)
 
 **Mode line in report:** `Test Quality Review`

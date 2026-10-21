@@ -1,13 +1,29 @@
-# Test Quality Review Guide — Mode 4
+# Test Quality Review — <project or module>
 
-**Purpose:** Diagnose the health of a test suite using seven test-space decay risks.
-Every finding must follow the Iron Law: Symptom → Source → Consequence → Remedy.
+Mode: Test Quality Review
+Health Score: <0–100>
 
----
+## Test Suite Map
+<code block: unit/integration/e2e counts, ratio, coverage areas, Collection facts>
+
+## Overall Assessment
+1. Best behavior contracts (3–5 tests, and why they survive refactors):
+2. Silent interference (never red, but steer implementation):
+3. External behavior with no contract test if this module is refactored:
+4. Tests to move to probes/ or delete:
 
 ## Before You Start: Build the Test Suite Map
 
-Before scanning for any risk, map the current test suite structure:
+Before filling the map, read these facts from the repo (do not guess):
+- `testpaths` from `pyproject.toml` / `pytest.ini` / `setup.cfg`
+- whether a `conftest.py` exists, and what fixtures it shares across files
+- files skipped at collection time (`importorskip`, `skipif`, markers) — these are
+  zero-collection tests, not coverage
+- whether a `probes/` or similar scratch directory exists, and whether it is gitignored
+
+Record these under the map as "Collection facts". They feed Step 5.
+
+Then map the current test suite structure:
 
 ```
 Unit tests:        X files, ~N tests
@@ -23,29 +39,9 @@ most relevant:
 2. "When you make a change, how often do unrelated tests break?"
 3. "Is there a part of the codebase your team avoids touching because it has no tests?"
 
-Before filling the map, read these facts from the repo (do not guess):
-- `testpaths` from `pyproject.toml` / `pytest.ini` / `setup.cfg`
-- whether a `conftest.py` exists, and what fixtures it shares across files
-- files skipped at collection time (`importorskip`, `skipif`, markers) — these are
-  zero-collection tests, not coverage
-- whether a `probes/` or similar scratch directory exists, and whether it is gitignored
-Record these under the map as "Collection facts". They feed Step 5.
-
 After one answer, proceed. Do not ask more than one question.
 
 ---
-
-## Root Criterion (applies to every step below)
-
-A test is well-formed only if it still passes when the implementation is rewritten
-with identical observable behavior. Ask of every test:
-
-  "If I replace the internals — extract a function, merge two calls, change the
-   algorithm — but every public behavior stays the same, does this test stay green?"
-
-If no, the test is coupled to implementation, regardless of how clean its name or
-assertions look. Steps 2a and 2b give symptoms; this criterion is the verdict.
-
 
 ## Analysis Process
 
@@ -65,11 +61,6 @@ Look for:
   fixtures) that is invisible from within the test body?
 - Is there a single massive setUp or beforeEach that every test inherits regardless of
   what it actually needs?
-- Agent-interference check: are there tests that rarely fail but make an automated
-  or unfamiliar contributor avoid a reasonable refactor — e.g. asserting an internal
-  call sequence, a private attribute, or an exact intermediate value that no caller
-  observes? These are silent interference, not just brittleness: they never go red,
-  but they steer implementation. Flag 🟡 with the refactor they would block.
 
 If all test names are clear and setups are minimal → no finding.
 
@@ -86,8 +77,18 @@ Look for:
 - Do assertions specify mock call order or exact parameter values that are irrelevant
   to the observable behavior?
 - Are tests coupled to private methods or internal state directly?
+- Agent-interference check: are there tests that rarely fail but make an automated
+  or unfamiliar contributor avoid a reasonable refactor — e.g. asserting an internal
+  call sequence, a private attribute, or an exact intermediate value that no caller
+  observes? These are silent interference, not just brittleness: they never go red,
+  but they steer implementation. Flag 🟡 with the refactor they would block.
 
-Severity: use the T2 Severity Guide in `../_shared/test-decay-risks.md`.
+**T2 Severity Guide (Brittleness):**
+- 🔴 A recent behavior-preserving refactor broke tests, or tests assert private
+  methods/internal state, or the suite would block a planned extraction.
+- 🟡 Tests assert call order / exact intermediate values that no caller observes,
+  or names bundle multiple behaviors ("and"), but no refactor is currently blocked.
+- 🟢 Isolated brittle assertion with a clear local rewrite.
 
 ### Step 2b: Scan for Mock Abuse
 
@@ -107,9 +108,18 @@ Look for:
   (test-induced design damage)?
 - Does any single test create more than 3 mock objects?
 
-If mock setup-to-assertion ratio exceeds 3:1 → 🟡 Warning.
-If production methods exist only for test access → 🔴 Critical (architecture is being
-distorted by the test suite).
+**Positive principle:** mocks belong only on uncontrolled external systems (network,
+clock, filesystem, third-party APIs) and on narrow interfaces the codebase owns.
+Internal collaboration uses fakes or real lightweight implementations. A test that
+mocks an internal collaborator to assert its calls is testing the mock contract, not
+the behavior contract.
+
+**T4 Severity Guide (Mock Abuse):**
+- 🔴 Production methods exist only for test access, or primary assertions are
+  `toHaveBeenCalled*` instead of outputs/state/events.
+- 🟡 Mock setup-to-assertion ratio exceeds 3:1, or a single test creates >3 mocks,
+  but assertions still land on observable behavior.
+- 🟢 A handful of mocks on true external boundaries with clear justification.
 
 ### Step 3: Scan for Test Duplication
 
@@ -127,8 +137,8 @@ Parameterization quality:
 - Bad: different inputs take different behavior branches inside the same test —
   that is several contracts wearing one name. Split it, do not parameterize it.
 
-Severity: use the T3 Severity Guide in `../_shared/test-decay-risks.md`, with instance
-counts as the tiebreaker — 🔴 10+ instances, 🟡 3–9, 🟢 1–2.
+**T3 Severity Guide (Duplication):** instance counts are the tiebreaker —
+🔴 10+ instances, 🟡 3–9, 🟢 1–2.
 
 ### Step 4: Scan for Coverage Illusion and Architecture Mismatch
 
@@ -161,14 +171,19 @@ Look for Architecture Mismatch:
 
 **Test suite performance:** A slow test suite is a first-class maintainability risk — it
 breaks the fast-feedback loop and causes developers to skip running tests locally.
-- If the full suite runtime is > 10 minutes → 🟡 Warning (per the T6 Severity Guide in
-  `../_shared/test-decay-risks.md`; runtime alone does not reach Critical)
+- If the full suite runtime is > 10 minutes → 🟡 Warning (runtime alone does not reach Critical)
 - Runtime > 30 minutes, or unknown because nobody runs the suite, is still 🟡 Warning —
   but say so explicitly in the Symptom. It reaches 🔴 Critical only when combined with a
-  Critical T6 condition: legacy code under modification with no seams and no
+  Critical condition: legacy code under modification with no seams and no
   characterization tests, or a fully inverted pyramid
 - If tests that could be unit tests are integration tests, that is a Performance Mismatch:
   each misclassified test adds seconds of avoidable wait time
+
+**T6 Severity Guide (Performance):**
+- 🔴 Slow suite + legacy code being modified without seams/characterization tests,
+  or a fully inverted test pyramid.
+- 🟡 Full suite > 10 minutes, or > 30 minutes, or unknown because nobody runs it.
+- 🟢 No avoidable integration-level overhead in tests that could be unit tests.
 
 Source: Meszaros — xUnit Test Patterns, Slow Tests (p. 253)
 
@@ -193,23 +208,28 @@ Look for:
   environment checks, anything with no named behavior contract. These belong in a
   gitignored probes directory, not in `tests/`.
 
-Severity: use the T? Severity Guide in `../_shared/test-decay-risks.md` under
-Test Lifecycle Debt (assign the next free T-number; if T1/T4/T5 are taken, use T7).
-Zombie and environment-coupled tests are 🔴 when they sit in the permanent suite;
-golden-file-without-update and scratch-probe leakage are 🟡.
+**T7 Severity Guide (Lifecycle Debt):**
+- 🔴 Zombie tests or environment-coupled tests sitting in the permanent suite.
+- 🟡 Golden files without an update path, or scratch probes leaking into `tests/`.
+- 🟢 Lifecycle risk identified and already isolated in a probes directory.
 
 ### Step 6: Apply Iron Law, Output Report
 
-Apply the Iron Law format from `../_shared/common.md` to each finding.
+For each finding, apply the Iron Law format from the Report Contract:
+Symptom → Source → Consequence → Remedy, with a severity label.
 
-Use the standard Report Template. Mode: Test Quality Review.
-Include the Test Suite Map as a code block immediately before the `## Findings` heading, labeled "Test Suite Map".
+Use the Report Template from the Report Contract. Mode: Test Quality Review.
 
-Before ## Findings, also output a short **Overall Assessment** answering:
-1. Which 3–5 tests are the best behavior contracts — and why they survive refactors?
-2. Which tests are silent interference — never red, but steer implementation?
-3. Which external behavior has no contract test if this module is refactored?
-4. Which current tests should move to `probes/` or be deleted? Give the list.
+Immediately before the `## Findings` heading, output in this order:
+1. The Test Suite Map as a code block, labeled "Test Suite Map".
+2. A short **Overall Assessment** answering:
+   - Which 3–5 tests are the best behavior contracts — and why they survive refactors?
+   - Which tests are silent interference — never red, but steer implementation?
+   - Which external behavior has no contract test if this module is refactored?
+   - Which current tests should move to `probes/` or be deleted? Give the list.
 
 Do not turn the report into a pure defect list; the assessment is what makes it
-actionable.
+actionable. Compute the Health Score per the Report Contract and show finding counts
+next to it.
+
+**唯一需要你决定的是 T4 这个编号。** 原来 `test-decay-risks.md` 不存在，所以 T2/T3/T6 这三个编号是从旧引用里保留下来的，T4（Mock Abuse）和 T7（Lifecycle Debt）是我新起的。如果你希望编号连续无跳号，把 T4 改成 T5、T7 改成 T6 即可，guide 里各出现一次，改动很小。
